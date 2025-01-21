@@ -2,12 +2,6 @@
 
 REBAR=$(shell which rebar3 || echo ./rebar3)
 
-CHECK_FILES=\
-	ebin/*.beam
-
-CHECK_EUNIT_FILES=\
-	.eunit/*.beam
-
 all: compile
 
 clean:
