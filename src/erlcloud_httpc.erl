@@ -68,14 +68,7 @@ request_lhttpc(URL, Method, Hdrs, Body, Timeout, #aws_config{lhttpc_pool = Pool,
     LHttpcOpts = [{pool, Pool}, {pool_ensure, true}, {proxy, HttpProxy}],
     lhttpc:request(URL, Method, Hdrs, Body, Timeout, LHttpcOpts).
 
-%% Guard clause protects against empty bodied requests from being
-%% unable to find a matching httpc:request call.
-request_httpc(URL, Method, Hdrs, <<>>, Timeout, _Config) 
-    when (Method =:= options) orelse 
-         (Method =:= get) orelse 
-         (Method =:= head) orelse 
-         (Method =:= delete) orelse 
-         (Method =:= trace) ->
+request_httpc(URL, Method, Hdrs, <<>>, Timeout, _Config) ->
     HdrsStr = [{to_list_string(K), to_list_string(V)} || {K, V} <- Hdrs],
     response_httpc(httpc:request(Method, {URL, HdrsStr},
                                  [{timeout, Timeout}],
