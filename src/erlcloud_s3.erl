@@ -31,6 +31,8 @@
          set_object_acl/3, set_object_acl/4,
          make_link/3, make_link/4,
          make_get_url/3, make_get_url/4,
+         make_presigned_v4_url/5,
+         make_presigned_v4_url/6,
          start_multipart/2, start_multipart/5,
          upload_part/5, upload_part/7,
          complete_multipart/4, complete_multipart/6,
@@ -1101,16 +1103,77 @@ make_link(Expire_time, BucketName, Key, Config) ->
 
 -spec get_object_url(string(), string()) -> string().
 
- get_object_url(BucketName, Key) ->
+get_object_url(BucketName, Key) ->
   get_object_url(BucketName, Key, default_config()).
 
 -spec get_object_url(string(), string(), aws_config()) -> string().
 
- get_object_url(BucketName, Key, Config) ->
+get_object_url(BucketName, Key, Config) ->
   case Config#aws_config.s3_bucket_after_host of
       false -> lists:flatten([Config#aws_config.s3_scheme, BucketName, ".", Config#aws_config.s3_host, port_spec(Config), "/", Key]);
       true  -> lists:flatten([Config#aws_config.s3_scheme, Config#aws_config.s3_host, port_spec(Config), "/", BucketName, "/", Key])
   end.
+
+-spec get_object_url_elements(string(), string(), aws_config()) -> {Host::string(), Path::string(), URL::string()}.
+get_object_url_elements(BucketName, Key, Config) ->
+    Key0 = case lists:prefix("/", Key) of
+               true -> Key;
+               false -> "/" ++ Key
+           end,
+
+    case Config#aws_config.s3_bucket_after_host of
+        false ->
+            Host = BucketName ++ "." ++ Config#aws_config.s3_host,
+            {Host, Key0, lists:flatten([Config#aws_config.s3_scheme, Host, port_spec(Config), Key0])};
+        true  ->
+            Host = Config#aws_config.s3_host,
+            Path = lists:flatten(["/", BucketName, Key0]),
+            {Host, Path, lists:flatten([Config#aws_config.s3_scheme, Host, port_spec(Config), Path])}
+    end.
+
+-spec signature(aws_config(), string(), string(), string(), atom(), proplist(), proplist(), string()) -> string().
+signature(Config, Path, Date, Region, Method, QueryParams, Headers, Payload) ->
+  Service = "s3",
+  CredentialScope = erlcloud_aws:credential_scope(Date, Region, Service),
+  {CanonicalRequest, _} = erlcloud_aws:canonical_request(Method, Path, QueryParams, Headers, Payload),
+  ToSign = erlcloud_aws:to_sign(Date, CredentialScope, CanonicalRequest),
+  SigningKey = erlcloud_aws:signing_key(Config, Date, Region, Service),
+  [Result] = erlcloud_aws:base16(erlcloud_util:sha256_mac( SigningKey, ToSign)),
+  Result.
+
+-spec make_presigned_v4_url(integer(), string(), atom(), string(), proplist()) -> {ok, string()} | {error, term()}.
+make_presigned_v4_url(ExpireTime, BucketName, Method, Key, Params) ->
+  make_presigned_v4_url(ExpireTime, BucketName, Method, Key, Params, default_config()).
+
+%% Authenticating Requests: Using Query Parameters
+%% https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html
+%% Example:
+%%   test() ->
+%%       application:ensure_all_started(erlcloud),
+%%       {ok, DefaultCfg} = erlcloud_aws:profile(),
+%%       AWSCfg = DefaultCfg#aws_config{s3_host = "s3.your_region.amazonaws.com"},
+%%       BucketName = "your_bucket_name",
+%%       Key = "your_object_key",
+%%       URL = erlcloud_s3:make_presigned_v4_url(604800, BucketName, put, Key, [{"X-User", "12333333"}], AWSCfg),
+%%       io:format("~s~n", [URL]).
+-spec make_presigned_v4_url(integer(), string(), atom(), string(), proplist(), aws_config()) -> string().
+make_presigned_v4_url(ExpireTime, BucketName, Method, Key, QueryParams, Config) when is_integer(ExpireTime) ->
+    {Host, Path, URL} = get_object_url_elements(BucketName, Key, Config),
+    Region = erlcloud_aws:aws_region_from_host(Config#aws_config.s3_host),
+    Date = erlcloud_aws:iso_8601_basic_time(),
+
+     Credential = erlcloud_aws:credential(Config, Date, Region, "s3"),
+
+     QP1 = [{"X-Amz-Algorithm", "AWS4-HMAC-SHA256"},
+           {"X-Amz-Credential", Credential},
+           {"X-Amz-Date", Date},
+           {"X-Amz-Expires", integer_to_list(ExpireTime)},
+           {"X-Amz-SignedHeaders", "host"}] ++ QueryParams,
+    Headers = [{"host", Host}],
+    Payload = "UNSIGNED-PAYLOAD",
+    Signature = signature(Config, Path, Date, Region, Method, QP1, Headers, Payload),
+    QueryStr = erlcloud_http:make_query_string(QP1 ++ [{"X-Amz-Signature", Signature}], no_assignment),
+    lists:flatten([URL, "?", QueryStr]).
 
 -spec make_get_url(integer(), string(), string()) -> iolist().
 
