@@ -25,7 +25,14 @@
          get_service_status/1,
          is_throttling_error_response/1,
          get_timeout/1,
-         profile/0, profile/1, profile/2
+         profile/0, profile/1, profile/2,
+         iso_8601_basic_time/0,
+         to_sign/3,
+         signing_key/4,
+         base16/1,
+         canonical_request/5,
+         credential_scope/3,
+         credential/4
 ]).
 
 -include("erlcloud.hrl").
@@ -1164,6 +1171,7 @@ sign_v4(Method, Uri, Config, Headers, Payload, Region, Service, QueryParams) ->
     Authorization = authorization(Config, CredentialScope, SignedHeaders, Signature),
     [{"Authorization", lists:flatten(Authorization)} | Headers2].
 
+-spec iso_8601_basic_time() -> string().
 iso_8601_basic_time() ->
     {{Year,Month,Day},{Hour,Min,Sec}} = calendar:universal_time(),
     lists:flatten([
@@ -1236,9 +1244,14 @@ hash_encode(Data) ->
 base16(Data) ->
     [binary:bin_to_list(base16:encode(Data))].
 
+-spec credential_scope(string(), string(), string()) -> string().
 credential_scope(Date, Region, Service) ->
     DateOnly = string:left(Date, 8),
     [DateOnly, $/, Region, $/, Service, "/aws4_request"].
+
+-spec credential(aws_config(), string(), string(), string()) -> string().
+credential(Config, Date, Region, Service) ->
+    [Config#aws_config.access_key_id, $/, credential_scope(Date, Region, Service)].
 
 to_sign(Date, CredentialScope, Request) ->
     ["AWS4-HMAC-SHA256\n",
