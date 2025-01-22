@@ -9,6 +9,7 @@
 -endif.
 
 -export([assume_role/4, assume_role/5,
+         assume_role/2,
          get_caller_identity/1,
          get_federation_token/3,
          get_federation_token/4]).
@@ -17,6 +18,18 @@
 -define(UTC_TO_GREGORIAN, 62167219200).
 -define(EXTERNAL_ID_MAX_LEN, 1224).
 
+% See http://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+% Options version of the API allowing MFA and etc access
+%% {"RoleArn", RoleArn},
+%% {"RoleSessionName", RoleSessionName},
+%% {"DurationSeconds", DurationSeconds},
+%% {"ExternalId", ExternalId},
+%% {"TokenCode", Code},
+%% {"SerialNumber", MFASerial}
+
+assume_role(AwsConfig, Options) ->
+    Xml = sts_query(AwsConfig, "AssumeRole", Options),
+    process_assume_response(AwsConfig, Xml).
 
 assume_role(AwsConfig, RoleArn, RoleSessionName, DurationSeconds) ->
     assume_role(AwsConfig, RoleArn, RoleSessionName, DurationSeconds, undefined).
@@ -42,7 +55,9 @@ assume_role(AwsConfig, RoleArn, RoleSessionName, DurationSeconds, ExternalId)
         end,
 
     Xml = sts_query(AwsConfig, "AssumeRole", Params ++ ExternalIdPart),
+    process_assume_response(AwsConfig, Xml).
 
+process_assume_response(AwsConfig, Xml) ->
     Creds = erlcloud_xml:decode(
         [
             {access_key_id    , "AssumeRoleResult/Credentials/AccessKeyId"    , text},
@@ -59,10 +74,7 @@ assume_role(AwsConfig, RoleArn, RoleSessionName, DurationSeconds, ExternalId)
             security_token    = proplists:get_value(session_token, Creds),
             expiration        = ExpireTS
         },
-
     {AssumedConfig, Creds}.
-
-
 
 %% @doc Retrieve identity information
 %%
