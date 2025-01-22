@@ -1112,24 +1112,48 @@ make_link(Expire_time, BucketName, Key, Config) ->
       true  -> lists:flatten([Config#aws_config.s3_scheme, Config#aws_config.s3_host, port_spec(Config), "/", BucketName, "/", Key])
   end.
 
--spec make_get_url(integer(), string(), string()) -> iolist().
+ -spec make_get_url(integer(), string(), string()) -> iolist().
 
-make_get_url(Expire_time, BucketName, Key) ->
-    make_get_url(Expire_time, BucketName, Key, default_config()).
-
+make_get_url(ExpireTime, BucketName, Key) ->
+    make_get_url(ExpireTime, BucketName, Key, default_config()).
+  
 -spec make_get_url(integer(), string(), string(), aws_config()) -> iolist().
 
-make_get_url(Expire_time, BucketName, Key, Config) ->
-    {Sig, Expires} = sign_get(Expire_time, BucketName, erlcloud_http:url_encode_loose(Key), Config),
-    SecurityTokenQS = case Config#aws_config.security_token of
-        undefined -> "";
-        SecurityToken -> "&x-amz-security-token=" ++ erlcloud_http:url_encode(SecurityToken)
-    end,
-    lists:flatten([get_object_url(BucketName, Key, Config),
-     "?AWSAccessKeyId=", erlcloud_http:url_encode(Config#aws_config.access_key_id),
-     "&Signature=", erlcloud_http:url_encode(Sig),
-     "&Expires=", Expires,
-     SecurityTokenQS]).
+make_get_url(ExpireTime, BucketName, Key, Config) ->
+    Host = Config#aws_config.s3_host,
+    Region = aws_region_from_host(Host),
+    Path = erlcloud_http:url_encode_loose("/" ++ BucketName ++ "/" ++ Key),
+    EndpointUrl  = lists:flatten([
+      Config#aws_config.s3_scheme,
+      Host, port_spec(Config), Path]),
+    Headers = [{"Host", Host}],
+    Service = "s3",
+    Terminator = "aws4_request",
+    Payload = "UNSIGNED-PAYLOAD",
+    AwsAccessKey = Config#aws_config.access_key_id,
+    {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_universal_time(erlang:timestamp()),
+    DateTime = lists:flatten(io_lib:format(
+        "~4.10.0B~2.10.0B~2.10.0BT~2.10.0B~2.10.0B~2.10.0BZ",[Year, Month, Day, Hour, Minute, Second])),
+    Date = string:left(DateTime, 8),
+    Scope =  Date ++ "/" ++ Region ++ "/" ++ Service ++ "/" ++ Terminator,
+    QueryParams = [
+        {"X-Amz-Algorithm", "AWS4-HMAC-SHA256"},
+        {"X-Amz-Credential", AwsAccessKey ++ "/" ++ Scope},
+        {"X-Amz-Date", DateTime},
+        {"X-Amz-SignedHeaders", "host"},
+        {"X-Amz-Expires", integer_to_list(ExpireTime)}
+    ],
+    Signature = erlcloud_aws:sign_v4_request(get, Path, Config, Headers, Payload, Region, Service, QueryParams, DateTime),
+
+    AuthString = lists:flatten(io_lib:format("~s=~s&~s=~s&~s=~s&~s=~s&~s=~s&~s=~s", [
+        "X-Amz-Algorithm", proplists:get_value("X-Amz-Algorithm", QueryParams),
+        "X-Amz-Credential", proplists:get_value("X-Amz-Credential", QueryParams),
+        "X-Amz-Date", proplists:get_value("X-Amz-Date", QueryParams),
+        "X-Amz-Expires", proplists:get_value("X-Amz-Expires", QueryParams),
+        "X-Amz-SignedHeaders", proplists:get_value("X-Amz-SignedHeaders", QueryParams),
+        "X-Amz-Signature", Signature
+    ])),
+    EndpointUrl ++ "?" ++ AuthString.
 
 -spec start_multipart(string(), string()) -> {ok, proplist()} | {error, any()}.
 start_multipart(BucketName, Key)
