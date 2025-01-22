@@ -995,14 +995,21 @@ get_credentials_from_metadata(Config) ->
 -spec get_credentials_from_task_metadata(aws_config())
                                    -> {ok, #metadata_credentials{}} | {error, metadata_not_available | container_credentials_unavailable | httpc_result_error()}.
 get_credentials_from_task_metadata(Config) ->
-    %% TODO this function should retry on errors getting credentials
-    case erlcloud_ecs_container_credentials:get_container_credentials(Config) of
+  %% TODO this function should retry on errors getting credentials
+  case erlcloud_ecs_container_credentials:get_container_credentials(Config) of
+    {error, _Reason} ->
+      %% Try to get credentials from EKS if ECS fails
+      case erlcloud_eks_container_credentials:get_container_credentials(Config) of
         {error, Reason} ->
-            {error, Reason};
+          {error, Reason};
         {ok, Json} ->
-            Creds = jsx:decode(Json, [{return_maps, false}]),
-            get_credentials_from_metadata_xform( Creds )
-    end.
+          Creds = jsx:decode(Json, [{return_maps, false}]),
+          get_credentials_from_metadata_xform(Creds)
+      end;
+    {ok, Json} ->
+      Creds = jsx:decode(Json, [{return_maps, false}]),
+      get_credentials_from_metadata_xform(Creds)
+  end.
 
 get_credentials_from_metadata_xform( Creds ) ->
     case {prop_to_list_defined(<<"AccessKeyId">>, Creds),
