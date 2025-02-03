@@ -1512,6 +1512,7 @@ extract_instance(Node) ->
      {dns_name, get_text("dnsName", Node)},
      {reason, get_text("reason", Node, none)},
      {key_name, get_text("keyName", Node, none)},
+     {metadata_options, transform_item_list(Node, "metadataOptions", fun extract_metadata_options/1)},
      {ami_launch_index, list_to_integer(get_text("amiLaunchIndex", Node, "0"))},
      {product_codes, get_list("productCodes/item/productCode", Node)},
      {instance_type, get_text("instanceType", Node)},

@@ -65,7 +65,8 @@ describe_test_() ->
       fun describe_launch_template_versions_input_tests/1,
       fun describe_launch_template_versions_output_tests/1,
       fun describe_security_groups_input_tests/1,
-      fun describe_security_groups_output_tests/1
+      fun describe_security_groups_output_tests/1,
+      fun describe_instances_output_tests/1
      ]}.
 
 start() ->
@@ -1383,6 +1384,262 @@ describe_instances_test_() ->
     {timeout, 60, fun () -> test_pagination(Tests, generate_instances_response, describe_instances, [], [[]]) end}
 .
 
+describe_instances_output_tests(_) ->
+    Tests =
+        [?_ec2_test(
+            {"This example describes all instances", "
+                <DescribeInstancesResponse xmlns=\"http://ec2.amazonaws.com/doc/2016-11-15/\">
+                    <requestId>95bd274e-560d-46c8-82da-bf41da8f2caf</requestId>
+                    <reservationSet>
+                        <item>
+                            <reservationId>r-000001</reservationId>
+                            <ownerId>123456789012</ownerId>
+                            <groupSet/>
+                            <instancesSet>
+                                <item>
+                                    <instanceId>i-000001</instanceId>
+                                    <imageId>ami-000001</imageId>
+                                    <instanceState>
+                                        <code>16</code>
+                                        <name>running</name>
+                                    </instanceState>
+                                    <privateDnsName>ip-10-0-1-1.ec2.internal</privateDnsName>
+                                    <dnsName/>
+                                    <reason/>
+                                    <keyName>key</keyName>
+                                    <amiLaunchIndex>0</amiLaunchIndex>
+                                    <productCodes/>
+                                    <operator>
+                                        <managed>false</managed>
+                                    </operator>
+                                    <instanceType>m3.medium</instanceType>
+                                    <launchTime>2025-01-31T09:01:15.000Z</launchTime>
+                                    <placement>
+                                        <availabilityZone>us-east-1a</availabilityZone>
+                                        <groupName/>
+                                        <tenancy>default</tenancy>
+                                    </placement>
+                                    <monitoring>
+                                        <state>disabled</state>
+                                    </monitoring>
+                                    <subnetId>subnet-00001</subnetId>
+                                    <vpcId>vpc-00001</vpcId>
+                                    <privateIpAddress>10.0.1.1</privateIpAddress>
+                                    <ipAddress>12.1.2.3</ipAddress>
+                                    <sourceDestCheck>true</sourceDestCheck>
+                                    <groupSet>
+                                        <item>
+                                            <groupId>sg-00001</groupId>
+                                            <groupName>security-group-01</groupName>
+                                        </item>
+                                    </groupSet>
+                                    <architecture>x86_64</architecture>
+                                    <rootDeviceType>ebs</rootDeviceType>
+                                    <rootDeviceName>/dev/sda1</rootDeviceName>
+                                    <blockDeviceMapping>
+                                        <item>
+                                            <deviceName>/dev/sda1</deviceName>
+                                            <ebs>
+                                                <volumeId>vol-00001</volumeId>
+                                                <status>attached</status>
+                                                <attachTime>2025-01-31T09:00:34.000Z</attachTime>
+                                                <deleteOnTermination>true</deleteOnTermination>
+                                            </ebs>
+                                        </item>
+                                    </blockDeviceMapping>
+                                    <virtualizationType>hvm</virtualizationType>
+                                    <clientToken/>
+                                    <tagSet>
+                                        <item>
+                                            <key>Name</key>
+                                            <value>test-instance</value>
+                                        </item>
+                                    </tagSet>
+                                    <hypervisor>xen</hypervisor>
+                                    <networkInterfaceSet>
+                                        <item>
+                                            <networkInterfaceId>eni-00001</networkInterfaceId>
+                                            <subnetId>subnet-00001</subnetId>
+                                            <vpcId>vpc-00001</vpcId>
+                                            <description>Primary network interface</description>
+                                            <ownerId>123456789012</ownerId>
+                                            <status>in-use</status>
+                                            <macAddress>02:bb:10:1a:1a:1a</macAddress>
+                                            <privateIpAddress>10.0.1.1</privateIpAddress>
+                                            <sourceDestCheck>true</sourceDestCheck>
+                                            <groupSet>
+                                                <item>
+                                                    <groupId>sg-00001</groupId>
+                                                    <groupName>security-group-01</groupName>
+                                                </item>
+                                            </groupSet>
+                                            <attachment>
+                                                <attachmentId>eni-attach-00001</attachmentId>
+                                                <deviceIndex>0</deviceIndex>
+                                                <status>attached</status>
+                                                <attachTime>2025-01-31T09:00:34.000Z</attachTime>
+                                                <deleteOnTermination>true</deleteOnTermination>
+                                                <networkCardIndex>0</networkCardIndex>
+                                            </attachment>
+                                            <association>
+                                                <publicIp>123.12.123.12</publicIp>
+                                                <publicDnsName/>
+                                                <ipOwnerId>amazon</ipOwnerId>
+                                            </association>
+                                            <privateIpAddressesSet>
+                                                <item>
+                                                    <privateIpAddress>10.0.1.1</privateIpAddress>
+                                                    <primary>true</primary>
+                                                    <association>
+                                                        <publicIp>123.12.123.12</publicIp>
+                                                        <publicDnsName/>
+                                                        <ipOwnerId>amazon</ipOwnerId>
+                                                    </association>
+                                                </item>
+                                            </privateIpAddressesSet>
+                                            <ipv6AddressesSet/>
+                                            <interfaceType>interface</interfaceType>
+                                            <operator>
+                                                <managed>false</managed>
+                                            </operator>
+                                        </item>
+                                    </networkInterfaceSet>
+                                    <ebsOptimized>false</ebsOptimized>
+                                    <enaSupport>true</enaSupport>
+                                    <cpuOptions>
+                                        <coreCount>1</coreCount>
+                                        <threadsPerCore>1</threadsPerCore>
+                                    </cpuOptions>
+                                    <capacityReservationSpecification>
+                                        <capacityReservationPreference>open</capacityReservationPreference>
+                                    </capacityReservationSpecification>
+                                    <hibernationOptions>
+                                        <configured>false</configured>
+                                    </hibernationOptions>
+                                    <enclaveOptions>
+                                        <enabled>false</enabled>
+                                    </enclaveOptions>
+                                    <metadataOptions>
+                                        <state>applied</state>
+                                        <httpTokens>optional</httpTokens>
+                                        <httpPutResponseHopLimit>1</httpPutResponseHopLimit>
+                                        <httpEndpoint>enabled</httpEndpoint>
+                                        <httpProtocolIpv6>disabled</httpProtocolIpv6>
+                                        <instanceMetadataTags>disabled</instanceMetadataTags>
+                                    </metadataOptions>
+                                    <maintenanceOptions>
+                                        <autoRecovery>default</autoRecovery>
+                                        <rebootMigration>default</rebootMigration>
+                                    </maintenanceOptions>
+                                    <networkPerformanceOptions>
+                                        <bandwidthWeighting>default</bandwidthWeighting>
+                                    </networkPerformanceOptions>
+                                    <platformDetails>Linux/UNIX</platformDetails>
+                                    <usageOperation>RunInstances</usageOperation>
+                                    <usageOperationUpdateTime>2025-01-31T09:00:34.000Z</usageOperationUpdateTime>
+                                    <privateDnsNameOptions/>
+                                </item>
+                            </instancesSet>
+                        </item>
+                    </reservationSet>
+                </DescribeInstancesResponse>
+            ",
+            {ok, [[
+                {reservation_id, "r-000001"},
+                {owner_id, "123456789012"},
+                {instances_set, [[
+                    {instance_id, "i-000001"},
+                    {group_set, [[
+                        {group_id, "sg-00001"},
+                        {group_name, "security-group-01"}
+                    ]]},
+                    {image_id, "ami-000001"},
+                    {instance_state, [{code, 16}, {name, "running"}]},
+                    {private_dns_name, "ip-10-0-1-1.ec2.internal"},
+                    {dns_name, []},
+                    {reason, none},
+                    {key_name, "key"},
+                    {metadata_options, [[
+                        {http_endpoint, "enabled"},
+                        {http_protocol_ipv6, "disabled"},
+                        {http_put_response_hop_limit, 1},
+                        {http_tokens, "optional"},
+                        {instance_metadata_tags, "disabled"},
+                        {state, "applied"}
+                    ]]},
+                    {ami_launch_index, 0},
+                    {product_codes, []},
+                    {instance_type, "m3.medium"},
+                    {launch_time, {{2025, 1, 31}, {9, 1, 15}}},
+                    {platform, []},
+                    {placement, [{availability_zone, "us-east-1a"}]},
+                    {kernel_id, []},
+                    {ramdisk_id, []},
+                    {monitoring, [{enabled, false}, {state, "disabled"}]},
+                    {subnet_id, "subnet-00001"},
+                    {vpc_id, "vpc-00001"},
+                    {private_ip_address, "10.0.1.1"},
+                    {ip_address, "12.1.2.3"},
+                    {state_reason, [{code, []}, {message, []}]},
+                    {architecture, "x86_64"},
+                    {root_device_type, "ebs"},
+                    {root_device_name, "/dev/sda1"},
+                    {block_device_mapping, [[
+                        {device_name, "/dev/sda1"},
+                        {volume_id, "vol-00001"},
+                        {status, "attached"},
+                        {attach_time, {{2025, 1, 31}, {9, 0, 34}}},
+                        {delete_on_termination, true}
+                    ]]},
+                    {instance_lifecycle, none},
+                    {spot_instance_request_id, none},
+                    {iam_instance_profile, [{arn, []}, {id, []}]},
+                    {tag_set, [[{key, "Name"}, {value, "test-instance"}]]},
+                    {network_interface_set, [[
+                        {network_interface_id, "eni-00001"},
+                        {subnet_id, "subnet-00001"},
+                        {vpc_id, "vpc-00001"},
+                        {availability_zone, []},
+                        {description, "Primary network interface"},
+                        {owner_id, "123456789012"},
+                        {requester_managed, false},
+                        {status, "in-use"},
+                        {mac_address, "02:bb:10:1a:1a:1a"},
+                        {private_ip_address, "10.0.1.1"},
+                        {source_dest_check, true},
+                        {groups_set, [[
+                            {group_id, "sg-00001"},
+                            {group_name, "security-group-01"}
+                        ]]},
+                        {attachment, [
+                            {attachment_id, "eni-attach-00001"},
+                            {instance_id, []},
+                            {instance_owner_id, []},
+                            {device_index, "0"},
+                            {status, "attached"},
+                            {attach_time, {{2025, 1, 31}, {9, 0, 34}}},
+                            {delete_on_termination, true}
+                        ]},
+                        {association, [
+                            {public_ip, "123.12.123.12"},
+                            {public_dns_name, []},
+                            {ip_owner_id, "amazon"},
+                            {allocation_id, []},
+                            {association_id, []}
+                        ]},
+                        {tag_set, []},
+                        {private_ip_addresses_set, [[
+                            {private_ip_address, "10.0.1.1"},
+                            {primary, true}
+                        ]]}
+                    ]]}
+                ]]}
+            ]]}}
+        )
+    ],
+    output_tests(?_f(erlcloud_ec2:describe_instances()), Tests)
+.
+
 describe_instances_boundaries_test_() ->
     [
         ?_assertException(error, function_clause, erlcloud_ec2:describe_instances([], 4, undefined)),
@@ -1914,6 +2171,14 @@ generate_one_instance(N) ->
                 <hypervisor>xen</hypervisor>
                 <networkInterfaceSet/>
                 <ebsOptimized>false</ebsOptimized>
+                <metadataOptions>
+                    <state>applied</state>
+                    <httpTokens>optional</httpTokens>
+                    <httpPutResponseHopLimit>1</httpPutResponseHopLimit>
+                    <httpEndpoint>enabled</httpEndpoint>
+                    <httpProtocolIpv6>disabled</httpProtocolIpv6>
+                    <instanceMetadataTags>disabled</instanceMetadataTags>
+                </metadataOptions>
             </item>
         </instancesSet>
     </item>".
