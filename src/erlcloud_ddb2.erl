@@ -204,6 +204,7 @@
     out_attr_value/0,
     out_item/0,
     out_opt/0,
+    return_maps_opt/0,
     out_type/0,
     projection/0,
     put_item_opt/0,
@@ -308,8 +309,10 @@ default_config() -> erlcloud_aws:default_config().
 -type in_string_value() :: binary() | iolist() | atom(). %% non-empty
 -type in_number_value() :: number().
 -type in_binary_value() :: binary() | [byte()]. %% non-empty
+-type in_map_value() :: #{attr_name() => in_attr_value()}.
 -type in_attr_value() :: in_string_value() |
                          in_number_value() |
+                         in_map_value() |
                          {s, in_string_value()} |
                          {n, in_number_value()} |
                          {b, in_binary_value()} |
@@ -319,7 +322,7 @@ default_config() -> erlcloud_aws:default_config().
                          {ns, [in_number_value(),...]} |
                          {bs, [in_binary_value(),...]} |
                          {l, [in_attr_value()]} |
-                         {m, [in_attr()]}.
+                         {m, [in_attr()] | in_map_value()}.
 -type in_attr() :: {attr_name(), in_attr_value()}.
 -type in_expected_item() :: {attr_name(), false} |
                             {attr_name(), true, in_attr_value()} |
@@ -395,10 +398,12 @@ default_config() -> erlcloud_aws:default_config().
 -type tag() :: {tag_key(), tag_value()}.
 -type tags() :: [tag()].
 
+-type out_map() :: #{attr_name() => out_attr_value()}.
 -type out_attr_value() :: binary() | number() | boolean() | undefined |
-                          [binary()] | [number()] | [out_attr_value()] | [out_attr()].
+                          [binary()] | [number()] | [out_attr_value()] | [out_attr()] |
+                          out_map().
 -type out_attr() :: {attr_name(), out_attr_value()}.
--type out_item() :: [out_attr() | in_attr()]. % in_attr in the case of typed_record
+-type out_item() :: [out_attr() | in_attr()] | out_map(). % in_attr in the case of typed_record
 -type ok_return(T) :: {ok, T} | {error, term()}.
 -type client_request_token() :: binary().
 
@@ -476,7 +481,14 @@ dynamize_value({m, []}) ->
     {<<"M">>, [{}]};
 dynamize_value({m, Value}) when is_list(Value) ->
     {<<"M">>, [dynamize_attr(Attr) || Attr <- Value]};
+dynamize_value({m, Value}) when is_map(Value) andalso map_size(Value) =:= 0 ->
+    %% jsx represents empty objects as [{}]
+    {<<"M">>, [{}]};
+dynamize_value({m, Value}) when is_map(Value) ->
+    {<<"M">>, dynamize_map(Value)};
 
+dynamize_value(Value) when is_map(Value) ->
+    {<<"M">>, dynamize_map(Value)};
 dynamize_value(Value) when is_binary(Value); is_list(Value); is_atom(Value) ->
     {<<"S">>, dynamize_string(Value)};
 dynamize_value(Value) when is_number(Value) ->
@@ -491,6 +503,13 @@ dynamize_attr({Name, _}) ->
     error({erlcloud_ddb, {invalid_attr_name, Name}});
 dynamize_attr(Attr) ->
     error({erlcloud_ddb, {invalid_attr, Attr}}).
+
+-spec dynamize_map(in_map_value()) -> json_attr().
+dynamize_map(Map) ->
+    maps:fold(
+      fun(Name, Value, Acc) ->
+              [{Name, [dynamize_value(Value)]} | Acc]
+      end, [], Map).
 
 -spec dynamize_key(key()) -> jsx:json_term().
 dynamize_key(Key) when is_list(Key) ->
@@ -718,7 +737,7 @@ dynamize_auto_scaling_settings_update_opts(Opts) ->
 %%% Shared Undynamizers
 %%%------------------------------------------------------------------------------
 
--type undynamize_opt() :: {typed, boolean()}.
+-type undynamize_opt() :: {typed, boolean()} | return_maps_opt().
 -type undynamize_opts() :: [undynamize_opt()].
 
 -spec id(X, undynamize_opts()) -> X.
@@ -761,11 +780,28 @@ undynamize_value({<<"BS">>, Values}, _) ->
     [base64:decode(Value) || Value <- Values];
 undynamize_value({<<"L">>, List}, Opts) ->
     [undynamize_value(Value, Opts) || [Value] <- List];
-undynamize_value({<<"M">>, [{}]}, _Opts) ->
+undynamize_value({<<"M">>, [{}]}, Opts) ->
     %% jsx returns [{}] for empty objects
-    [];
+    case proplists:get_bool(return_maps, Opts) of
+        true ->
+            #{};
+        false ->
+            []
+    end;
 undynamize_value({<<"M">>, Map}, Opts) ->
-    [undynamize_attr(Attr, Opts) || Attr <- Map].
+    case proplists:get_bool(return_maps, Opts) of
+        true ->
+            undynamize_map(Map, Opts);
+        false ->
+            [undynamize_attr(Attr, Opts) || Attr <- Map]
+    end.
+
+-spec undynamize_map([json_pair()], undynamize_opts()) -> out_map().
+undynamize_map(List, Opts) ->
+    lists:foldl(
+      fun({Name, [ValueJson]}, Acc) ->
+              Acc#{Name => undynamize_value(ValueJson, Opts)}
+      end, #{}, List).
 
 -spec undynamize_attr(json_attr(), undynamize_opts()) -> out_attr().
 undynamize_attr({Name, [ValueJson]}, Opts) ->
@@ -811,11 +847,28 @@ undynamize_value_typed({<<"BS">>, Values}, _) ->
     {bs, [base64:decode(Value) || Value <- Values]};
 undynamize_value_typed({<<"L">>, List}, Opts) ->
     {l, [undynamize_value_typed(Value, Opts) || [Value] <- List]};
-undynamize_value_typed({<<"M">>, [{}]}, _Opts) ->
+undynamize_value_typed({<<"M">>, [{}]}, Opts) ->
     %% jsx returns [{}] for empty objects
-    {m, []};
+    case proplists:get_bool(return_maps, Opts) of
+        true ->
+            {m, #{}};
+        false ->
+            {m, []}
+    end;
 undynamize_value_typed({<<"M">>, Map}, Opts) ->
-    {m, [undynamize_attr_typed(Attr, Opts) || Attr <- Map]}.
+    case proplists:get_bool(return_maps, Opts) of
+        true ->
+            {m, undynamize_map_typed(Map, Opts)};
+        false ->
+            {m, [undynamize_attr_typed(Attr, Opts) || Attr <- Map]}
+    end.
+
+-spec undynamize_map_typed([json_pair()], undynamize_opts()) -> out_map().
+undynamize_map_typed(List, Opts) ->
+    lists:foldl(
+      fun({Name, [ValueJson]}, Acc) ->
+              Acc#{Name => undynamize_value_typed(ValueJson, Opts)}
+      end, #{}, List).
 
 -spec undynamize_attr_typed(json_attr(), undynamize_opts()) -> in_attr().
 undynamize_attr_typed({Name, [ValueJson]}, Opts) ->
@@ -963,11 +1016,12 @@ id(X) -> X.
 -type out_type() :: json | record | typed_record | simple.
 -type out_opt() :: {out, out_type()}.
 -type no_request_opt() :: {no_request, boolean()}.
+-type return_maps_opt() :: boolean_opt(return_maps).
 -type boolean_opt(Name) :: Name | {Name, boolean()}.
 -type property() :: proplists:property().
 
 -type aws_opts() :: [json_pair()].
--type ddb_opts() :: [out_opt() | no_request_opt()].
+-type ddb_opts() :: [out_opt() | no_request_opt() | return_maps_opt()].
 -type opts() :: {aws_opts(), ddb_opts()}.
 
 -spec verify_ddb_opt(atom(), term()) -> ok.
@@ -984,6 +1038,13 @@ verify_ddb_opt(no_request, Value) ->
             ok;
         false ->
             error({erlcloud_ddb, {invalid_opt, {no_request, Value}}})
+    end;
+verify_ddb_opt(return_maps, Value) ->
+    case is_boolean(Value) of
+        true ->
+            ok;
+        false ->
+            error({erlcloud_ddb, {invalid_opt, {return_maps, Value}}})
     end;
 verify_ddb_opt(Name, Value) ->
     error({erlcloud_ddb, {invalid_opt, {Name, Value}}}).
@@ -1154,15 +1215,16 @@ out(ok, _, _) ->
 out({ok, #ddb2_request{}} = Request, _Undynamize, _Opts) ->
     Request;
 out({ok, Json}, Undynamize, Opts) ->
+    Maps = proplists:get_bool(return_maps, Opts),
     case proplists:get_value(out, Opts, simple) of
         json ->
             {ok, Json};
         record ->
-            {ok, Undynamize(Json, [])};
+            {ok, Undynamize(Json, [{return_maps, Maps}])};
         typed_record ->
-            {ok, Undynamize(Json, [{typed, true}])};
+            {ok, Undynamize(Json, [{typed, true}, {return_maps, Maps}])};
         simple ->
-            {simple, Undynamize(Json, [])}
+            {simple, Undynamize(Json, [{return_maps, Maps}])}
     end.
 
 %% Returns specified field of tuple for simple return
@@ -1472,7 +1534,8 @@ table_description_record() ->
 
 -type batch_get_item_opt() :: return_consumed_capacity_opt() |
                               out_opt() |
-                              no_request_opt().
+                              no_request_opt() |
+                              return_maps_opt().
 -type batch_get_item_opts() :: [batch_get_item_opt()].
 
 -spec batch_get_item_opts() -> opt_table().
@@ -1615,7 +1678,8 @@ batch_get_item(RequestItems, Opts, Config) ->
 -type batch_write_item_opt() :: return_consumed_capacity_opt() |
                                 return_item_collection_metrics_opt() |
                                 out_opt() |
-                                no_request_opt().
+                                no_request_opt() |
+                                return_maps_opt().
 -type batch_write_item_opts() :: [batch_write_item_opt()].
 
 -spec batch_write_item_opts() -> opt_table().
@@ -2117,7 +2181,8 @@ delete_backup(BackupArn, Opts, Config)
                            return_consumed_capacity_opt() |
                            return_item_collection_metrics_opt() |
                            out_opt() |
-                           no_request_opt().
+                           no_request_opt() |
+                           return_maps_opt().
 -type delete_item_opts() :: [delete_item_opt()].
 
 -spec delete_item_opts() -> opt_table().
@@ -2680,7 +2745,8 @@ describe_time_to_live(Table, DbOpts, Config) ->
                         consistent_read_opt() |
                         return_consumed_capacity_opt() |
                         out_opt() |
-                        no_request_opt().
+                        no_request_opt() |
+                        return_maps_opt().
 -type get_item_opts() :: [get_item_opt()].
 
 -spec get_item_opts() -> opt_table().
@@ -3035,7 +3101,8 @@ list_tags_of_resource(ResourceArn, Opts, Config) ->
                         return_consumed_capacity_opt() |
                         return_item_collection_metrics_opt() |
                         out_opt() |
-                        no_request_opt().
+                        no_request_opt() |
+                        return_maps_opt().
 -type put_item_opts() :: [put_item_opt()].
 
 -spec put_item_opts() -> opt_table().
@@ -3145,7 +3212,8 @@ put_item(Table, Item, Opts, Config) ->
                  {index_name, index_name()} |
                  {select, select()} |
                  return_consumed_capacity_opt() |
-                 out_opt().
+                 out_opt() |
+                 return_maps_opt().
 -type q_opts() :: [q_opt()].
 
 -spec q_opts() -> opt_table().
@@ -3370,7 +3438,8 @@ restore_table_to_point_in_time(SourceTableName, TargetTableName, Opts, Config)
                     {select, select()} |
                     return_consumed_capacity_opt() |
                     out_opt() |
-                    no_request_opt().
+                    no_request_opt() |
+                    return_maps_opt().
 -type scan_opts() :: [scan_opt()].
 
 -spec scan_opts() -> opt_table().
@@ -3495,7 +3564,8 @@ tag_resource(ResourceArn, Tags, Config) ->
                            projection_expression_opt() |
                            return_consumed_capacity_opt() |
                            out_opt() |
-                           no_request_opt().
+                           no_request_opt() |
+                           return_maps_opt().
 -type transact_get_items_opts() :: [transact_get_items_transact_item_opts()].
 
 -type transact_get_items_get_item() :: {table_name(), key()}
@@ -3604,7 +3674,8 @@ transact_get_items(TransactItems, Opts, Config) ->
                                 return_consumed_capacity_opt() |
                                 return_item_collection_metrics_opt() |
                                 out_opt() |
-                                no_request_opt().
+                                no_request_opt() |
+                                return_maps_opt().
 -type transact_write_items_opts() :: [transact_write_items_opt()].
 
 -type return_value_on_condition_check_failure_opt() :: {return_values_on_condition_check_failure, return_value()}.
@@ -3871,7 +3942,8 @@ dynamize_update_item_updates_or_expression(Updates) ->
                            return_consumed_capacity_opt() |
                            return_item_collection_metrics_opt() |
                            out_opt() |
-                           no_request_opt().
+                           no_request_opt() |
+                           return_maps_opt().
 -type update_item_opts() :: [update_item_opt()].
 
 -spec update_item_opts() -> opt_table().

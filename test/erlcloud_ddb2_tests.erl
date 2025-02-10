@@ -63,7 +63,9 @@ operation_test_() ->
       fun describe_time_to_live_output_tests/1,
       fun get_item_input_tests/1,
       fun get_item_output_tests/1,
+      fun get_item_output_map_tests/1,
       fun get_item_output_typed_tests/1,
+      fun get_item_output_typed_map_tests/1,
       fun list_backups_input_tests/1,
       fun list_backups_output_tests/1,
       fun list_global_tables_input_tests/1,
@@ -74,6 +76,7 @@ operation_test_() ->
       fun list_tags_of_resource_output_tests/1,
       fun put_item_input_tests/1,
       fun put_item_output_tests/1,
+      fun put_item_output_map_tests/1,
       fun q_input_tests/1,
       fun q_output_tests/1,
       fun restore_table_from_backup_input_tests/1,
@@ -3678,6 +3681,77 @@ get_item_output_tests(_) ->
 
     output_tests(?_f(erlcloud_ddb2:get_item(<<"table">>, {<<"k">>, <<"v">>}, [{out, record}])), Tests).
 
+get_item_output_map_tests(_) ->
+    Tests =
+        [?_ddb_test(
+            {"GetItem example response", "
+{
+    \"ConsumedCapacity\": {
+        \"CapacityUnits\": 1,
+        \"TableName\": \"Thread\"
+    },
+    \"Item\": {
+        \"Tags\": {
+            \"SS\": [\"Update\",\"Multiple Items\",\"HelpMe\"]
+        },
+        \"LastPostDateTime\": {
+            \"S\": \"201303190436\"
+        },
+        \"Message\": {
+            \"S\": \"I want to update multiple items in a single API call. What's the best way to do that?\"
+        }
+    }
+}",
+             {ok, #ddb2_get_item{
+                     item = [{<<"Tags">>, [<<"Update">>, <<"Multiple Items">>, <<"HelpMe">>]},
+                             {<<"LastPostDateTime">>, <<"201303190436">>},
+                             {<<"Message">>, <<"I want to update multiple items in a single API call. What's the best way to do that?">>}],
+                    consumed_capacity = #ddb2_consumed_capacity{
+                                          capacity_units = 1,
+                                          table_name = <<"Thread">>}}}}),
+         ?_ddb_test(
+            {"GetItem test all attribute types", "
+{\"Item\":
+    {\"ss\":{\"SS\":[\"Lynda\", \"Aaron\"]},
+     \"ns\":{\"NS\":[\"12\",\"13.0\",\"14.1\"]},
+     \"bs\":{\"BS\":[\"BbY=\"]},
+     \"es\":{\"SS\":[]},
+     \"s\":{\"S\":\"Lynda\"},
+     \"n\":{\"N\":\"12\"},
+     \"f\":{\"N\":\"12.34\"},
+     \"b\":{\"B\":\"BbY=\"},
+     \"l\":{\"L\":[{\"S\":\"Listen\"},{\"S\":\"Linda\"}]},
+     \"m\":{\"M\":{\"k\": {\"S\": \"v\"}}},
+     \"empty_string\":{\"S\":\"\"},
+     \"empty_map\":{\"M\":{}}
+    }
+}",
+             {ok, #ddb2_get_item{
+                     item = [{<<"ss">>, [<<"Lynda">>, <<"Aaron">>]},
+                             {<<"ns">>, [12,13.0,14.1]},
+                             {<<"bs">>, [<<5,182>>]},
+                             {<<"es">>, []},
+                             {<<"s">>, <<"Lynda">>},
+                             {<<"n">>, 12},
+                             {<<"f">>, 12.34},
+                             {<<"b">>, <<5,182>>},
+                             {<<"l">>, [<<"Listen">>, <<"Linda">>]},
+                             {<<"m">>, #{<<"k">> => <<"v">>}},
+                             {<<"empty_string">>, <<>>},
+                             {<<"empty_map">>, #{}}],
+                    consumed_capacity = undefined}}}),
+         ?_ddb_test(
+            {"GetItem item not found",
+             "{}",
+             {ok, #ddb2_get_item{item = undefined}}}),
+         ?_ddb_test(
+            {"GetItem no attributes returned",
+             "{\"Item\":{}}",
+             {ok, #ddb2_get_item{item = []}}})
+        ],
+
+    output_tests(?_f(erlcloud_ddb2:get_item(<<"table">>, {<<"k">>, <<"v">>}, [{out, record}, return_maps])), Tests).
+
 get_item_output_typed_tests(_) ->
     Tests =
         [?_ddb_test(
@@ -3715,6 +3789,44 @@ get_item_output_typed_tests(_) ->
 
     output_tests(?_f(erlcloud_ddb2:get_item(
                        <<"table">>, {<<"k">>, <<"v">>}, [{out, typed_record}])), Tests).
+
+get_item_output_typed_map_tests(_) ->
+    Tests =
+        [?_ddb_test(
+            {"GetItem typed test all attribute types", "
+{\"Item\":
+    {\"ss\":{\"SS\":[\"Lynda\", \"Aaron\"]},
+     \"ns\":{\"NS\":[\"12\",\"13.0\",\"14.1\"]},
+     \"bs\":{\"BS\":[\"BbY=\"]},
+     \"es\":{\"SS\":[]},
+     \"s\":{\"S\":\"Lynda\"},
+     \"n\":{\"N\":\"12\"},
+     \"f\":{\"N\":\"12.34\"},
+     \"b\":{\"B\":\"BbY=\"},
+     \"l\":{\"L\":[{\"S\":\"Listen\"},{\"S\":\"Linda\"}]},
+     \"m\":{\"M\":{\"k\": {\"S\": \"v\"}}},
+     \"empty_string\":{\"S\":\"\"},
+     \"empty_map\":{\"M\":{}}
+    }
+}",
+             {ok, #ddb2_get_item{
+                     item = [{<<"ss">>, {ss, [<<"Lynda">>, <<"Aaron">>]}},
+                             {<<"ns">>, {ns, [12,13.0,14.1]}},
+                             {<<"bs">>, {bs, [<<5,182>>]}},
+                             {<<"es">>, {ss,  []}},
+                             {<<"s">>, {s, <<"Lynda">>}},
+                             {<<"n">>, {n, 12}},
+                             {<<"f">>, {n, 12.34}},
+                             {<<"b">>, {b, <<5,182>>}},
+                             {<<"l">>, {l, [{s, <<"Listen">>}, {s, <<"Linda">>}]}},
+                             {<<"m">>, {m, #{<<"k">> => {s, <<"v">>}}}},
+                             {<<"empty_string">>, {s, <<>>}},
+                             {<<"empty_map">>, {m, #{}}}],
+                    consumed_capacity = undefined}}})
+        ],
+
+    output_tests(?_f(erlcloud_ddb2:get_item(
+                       <<"table">>, {<<"k">>, <<"v">>}, [{out, typed_record}, return_maps])), Tests).
 
 %% ListBackups test based on the API examples:
 %% https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_ListBackups.html
@@ -4123,6 +4235,29 @@ put_item_input_tests(_) ->
         \"empty_map_value\": {\"M\": {}}
     }
 }"
+            }),
+        ?_ddb_test(
+            {"PutItem request with map",
+             ?_f(erlcloud_ddb2:put_item(<<"Table">>,
+                                       [{<<"map_value">>, {m, #{ 
+                                            <<"key1">> => "value1",
+                                            <<"key2">> => {l, ["list_string1", "list_string2"]}
+                                        }}},
+                                        {<<"empty_map_value">>, {m, #{}}}
+                                       ])), "
+{
+    \"TableName\": \"Table\",
+    \"Item\": {
+        \"map_value\": {\"M\": {
+            \"key1\": {\"S\": \"value1\"},
+            \"key2\": {\"L\": [
+                {\"S\": \"list_string1\"},
+                {\"S\": \"list_string2\"}
+            ]}
+        }},
+        \"empty_map_value\": {\"M\": {}}
+    }
+}"
             })
         ],
 
@@ -4231,6 +4366,144 @@ put_item_output_tests(_) ->
         ],
 
     output_tests(?_f(erlcloud_ddb2:put_item(<<"table">>, [], [{out, record}])), Tests).
+
+put_item_output_map_tests(_) ->
+    Tests =
+        [?_ddb_test(
+            {"PutItem example response", "
+{
+}",
+             {ok, #ddb2_put_item{}}}),
+         ?_ddb_test(
+            {"PutItem complete response", "
+{
+    \"Attributes\": {
+        \"LastPostedBy\": {
+            \"S\": \"fred@example.com\"
+        },
+        \"ForumName\": {
+            \"S\": \"Amazon DynamoDB\"
+        },
+        \"LastPostDateTime\": {
+            \"S\": \"201303201023\"
+        },
+        \"Tags\": {
+            \"SS\": [\"Update\",\"Multiple Items\",\"HelpMe\"]
+        },
+        \"Subject\": {
+            \"S\": \"How do I update multiple items?\"
+        },
+        \"Message\": {
+            \"S\": \"I want to update multiple items in a single API call. What's the best way to do that?\"
+        }
+    },
+    \"ConsumedCapacity\": {
+        \"CapacityUnits\": 1,
+        \"TableName\": \"Thread\"
+    },
+    \"ItemCollectionMetrics\": {
+        \"ItemCollectionKey\": {
+            \"ForumName\": {
+                \"S\": \"Amazon DynamoDB\"
+            }
+        },
+        \"SizeEstimateRangeGB\": [1, 2]
+    }
+}",
+
+             {ok, #ddb2_put_item{
+                     attributes = [{<<"LastPostedBy">>, <<"fred@example.com">>},
+                                   {<<"ForumName">>, <<"Amazon DynamoDB">>},
+                                   {<<"LastPostDateTime">>, <<"201303201023">>},
+                                   {<<"Tags">>, [<<"Update">>, <<"Multiple Items">>, <<"HelpMe">>]},
+                                   {<<"Subject">>, <<"How do I update multiple items?">>},
+                                   {<<"Message">>, <<"I want to update multiple items in a single API call. What's the best way to do that?">>}],
+                     consumed_capacity =
+                         #ddb2_consumed_capacity{
+                            table_name = <<"Thread">>,
+                            capacity_units = 1},
+                     item_collection_metrics =
+                         #ddb2_item_collection_metrics{
+                            item_collection_key = <<"Amazon DynamoDB">>,
+                            size_estimate_range_gb = {1,2}}
+                     }}}),
+         ?_ddb_test(
+            {"PutItem response with complex item", "
+{
+    \"Attributes\": {
+        \"bool_true\": {\"BOOL\": true},
+        \"bool_false\": {\"BOOL\": false},
+        \"null_value\": {\"NULL\": true},
+        \"list_value\": {\"L\": [
+            {\"S\": \"string\"},
+            {\"SS\": [
+                \"string1\",
+                \"string2\"
+            ]}
+        ]},
+        \"map_value\": {\"M\": {
+            \"key1\": {\"S\": \"value1\"},
+            \"key2\": {\"L\": [
+                {\"S\": \"list_string1\"},
+                {\"S\": \"list_string2\"}
+            ]}
+        }},
+        \"empty_map_value\": {\"M\": {}}
+    }
+}",
+
+             {ok, #ddb2_put_item{
+                     attributes = [{<<"bool_true">>, true},
+                                   {<<"bool_false">>, false},
+                                   {<<"null_value">>, undefined},
+                                   {<<"list_value">>, [<<"string">>, [<<"string1">>, <<"string2">>]]},
+                                   {<<"map_value">>, #{ 
+                                       <<"key1">> => <<"value1">>,
+                                       <<"key2">> => [<<"list_string1">>, <<"list_string2">>]
+                                   }},
+                                   {<<"empty_map_value">>, #{}}
+                                  ]
+                     }}}),
+         ?_ddb_test(
+            {"PutItem response with nested map", "
+{
+    \"Attributes\": {
+        \"bool_true\": {\"BOOL\": true},
+        \"bool_false\": {\"BOOL\": false},
+        \"null_value\": {\"NULL\": true},
+        \"list_value\": {\"L\": [
+            {\"S\": \"string\"},
+            {\"SS\": [
+                \"string1\",
+                \"string2\"
+            ]}
+        ]},
+        \"map_value\": {\"M\": {
+            \"key1\": {\"M\": {\"inner\": {\"S\": \"value1\"}}},
+            \"key2\": {\"L\": [
+                {\"S\": \"list_string1\"},
+                {\"S\": \"list_string2\"}
+            ]}
+        }},
+        \"empty_map_value\": {\"M\": {}}
+    }
+}",
+
+             {ok, #ddb2_put_item{
+                     attributes = [{<<"bool_true">>, true},
+                                   {<<"bool_false">>, false},
+                                   {<<"null_value">>, undefined},
+                                   {<<"list_value">>, [<<"string">>, [<<"string1">>, <<"string2">>]]},
+                                   {<<"map_value">>, #{ 
+                                       <<"key1">> => #{<<"inner">> => <<"value1">>},
+                                       <<"key2">> => [<<"list_string1">>, <<"list_string2">>]
+                                   }},
+                                   {<<"empty_map_value">>, #{}}
+                                  ]
+                     }}})
+        ],
+
+    output_tests(?_f(erlcloud_ddb2:put_item(<<"table">>, [], [{out, record}, return_maps])), Tests).
 
 %% Query test based on the API examples:
 %% http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html
